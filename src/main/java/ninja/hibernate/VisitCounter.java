@@ -7,11 +7,13 @@ import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collector;
 import java.util.stream.Collectors;
 
 import static java.util.stream.Collectors.groupingBy;
 import static java.util.stream.Collectors.mapping;
 import static java.util.stream.Collectors.summingLong;
+import static java.util.stream.Collectors.toMap;
 
 class VisitCounter {
 
@@ -39,7 +41,11 @@ class VisitCounter {
             addMap(3, map, listOfMaps);
         }
 
-        System.out.println(VisitCounter.count(listOfMaps));
+        Map<Long, Long> res1 = count(listOfMaps, getGroupingByCollector());
+        Map<Long, Long> res2 = count(listOfMaps, getMappingCollector());
+        System.out.println("First collector result:\n" + res1 +
+                "\nSecond collector result:\n" + res2 +
+                "\nResults equality:\n" + res1.equals(res2));
         /*
             The call to another signature should look like this:
             System.out.println(VisitCounter.count(listOfMaps.get(5)), ...);
@@ -54,7 +60,8 @@ class VisitCounter {
         }
     }
 
-    private static Map<Long, Long> count(List<Map<String, UserStats>> visits) {
+    private static Map<Long, Long> count(List<Map<String, UserStats>> visits,
+                                         Collector<Map.Entry<String, UserStats>, ?, Map<Long, Long>> collector) {
         /*
             Initially method signature assumed to look like this
 
@@ -88,9 +95,7 @@ class VisitCounter {
                     }
                     return res;
                 }).flatMap(el -> el.entrySet().stream()).
-                collect(groupingBy(el -> Long.parseLong(el.getKey()),
-                        mapping(Map.Entry::getValue,
-                                summingLong(el -> el.getVisitsCount().orElse(0L)))));
+                collect(collector);
 
                 /*      Equivalent of Optional::orElse is here:
                                 {
@@ -108,5 +113,18 @@ class VisitCounter {
                         }, Long::sum));
                  */
 
+    }
+
+    private static Collector<Map.Entry<String, UserStats>, ?, Map<Long, Long>> getMappingCollector() {
+        return toMap(el -> Long.parseLong(el.getKey()), el -> {
+            Optional<Long> visitsCount = el.getValue().getVisitsCount();
+            return visitsCount.orElse(0L);
+        }, Long::sum);
+    }
+
+    private static Collector<Map.Entry<String, UserStats>, ?, Map<Long, Long>> getGroupingByCollector() {
+        return groupingBy(el -> Long.parseLong(el.getKey()),
+                mapping(Map.Entry::getValue,
+                        summingLong(el -> el.getVisitsCount().orElse(0L))));
     }
 }
